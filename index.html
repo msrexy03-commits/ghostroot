@@ -1,0 +1,773 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>GhostRoot AI</title>
+  <meta name="description" content="Privacy-first conversational AI. It remembers the conversation without remembering you.">
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link href="https://fonts.googleapis.com/css2?family=Space+Mono:ital,wght@0,400;0,700;1,400&family=Syne:wght@400;700;800&display=swap" rel="stylesheet">
+  <style>
+    :root {
+      --green: #00ff66;
+      --green-dim: rgba(0,255,102,0.08);
+      --green-mid: rgba(0,255,102,0.2);
+      --bg: #050505;
+      --surface: #0c0c0c;
+      --border: rgba(0,255,102,0.08);
+      --border-mid: rgba(0,255,102,0.15);
+      --text: #d4d4d4;
+      --text-muted: #555555;
+      --text-dim: #2a2a2a;
+    }
+
+    * { margin: 0; padding: 0; box-sizing: border-box; }
+    html { scroll-behavior: smooth; }
+
+    body {
+      background: var(--bg);
+      color: var(--text);
+      font-family: 'Space Mono', monospace;
+      overflow-x: hidden;
+    }
+
+    /* Scanline effect */
+    body::before {
+      content: '';
+      position: fixed;
+      inset: 0;
+      background: repeating-linear-gradient(
+        0deg,
+        transparent,
+        transparent 3px,
+        rgba(0,0,0,0.08) 3px,
+        rgba(0,0,0,0.08) 4px
+      );
+      pointer-events: none;
+      z-index: 100;
+    }
+
+    /* Vignette */
+    body::after {
+      content: '';
+      position: fixed;
+      inset: 0;
+      background: radial-gradient(ellipse at center, transparent 40%, rgba(0,0,0,0.7) 100%);
+      pointer-events: none;
+      z-index: 99;
+    }
+
+    /* Nav */
+    nav {
+      position: fixed;
+      top: 0; left: 0; right: 0;
+      z-index: 200;
+      padding: 20px 40px;
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+    }
+
+    .nav-logo {
+      font-family: 'Space Mono', monospace;
+      font-size: 13px;
+      letter-spacing: 3px;
+      color: var(--green);
+      text-decoration: none;
+      text-transform: uppercase;
+    }
+
+    .nav-status {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      font-size: 10px;
+      letter-spacing: 2px;
+      color: var(--text-muted);
+    }
+
+    .status-dot {
+      width: 6px;
+      height: 6px;
+      border-radius: 50%;
+      background: var(--green);
+      animation: pulse 2s ease infinite;
+    }
+
+    @keyframes pulse {
+      0%, 100% { opacity: 1; }
+      50% { opacity: 0.3; }
+    }
+
+    /* Terminal boot sequence */
+    .boot {
+      position: fixed;
+      inset: 0;
+      background: var(--bg);
+      z-index: 500;
+      display: flex;
+      flex-direction: column;
+      justify-content: center;
+      padding: 48px;
+      transition: opacity 0.8s ease;
+    }
+
+    .boot.hidden {
+      opacity: 0;
+      pointer-events: none;
+    }
+
+    .boot-line {
+      font-family: 'Space Mono', monospace;
+      font-size: 12px;
+      color: var(--green);
+      letter-spacing: 1px;
+      line-height: 2;
+      opacity: 0;
+    }
+
+    .boot-line.dim { color: var(--text-muted); }
+    .boot-line.show { opacity: 1; }
+
+    .cursor-blink {
+      display: inline-block;
+      width: 8px;
+      height: 14px;
+      background: var(--green);
+      animation: blink 1s step-end infinite;
+      vertical-align: middle;
+      margin-left: 2px;
+    }
+
+    @keyframes blink { 0%, 100% { opacity: 1; } 50% { opacity: 0; } }
+
+    /* Hero */
+    .hero {
+      min-height: 100vh;
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      border-bottom: 1px solid var(--border);
+      opacity: 0;
+      transition: opacity 0.8s ease 0.3s;
+    }
+
+    .hero.visible { opacity: 1; }
+
+    .hero-left {
+      padding: 140px 48px 80px;
+      border-right: 1px solid var(--border);
+      display: flex;
+      flex-direction: column;
+      justify-content: center;
+    }
+
+    .hero-tag {
+      font-size: 9px;
+      letter-spacing: 4px;
+      color: var(--green);
+      text-transform: uppercase;
+      margin-bottom: 40px;
+      display: flex;
+      align-items: center;
+      gap: 12px;
+    }
+
+    .hero-tag::before {
+      content: '';
+      display: block;
+      width: 24px;
+      height: 1px;
+      background: var(--green);
+    }
+
+    .hero-title {
+      font-family: 'Syne', sans-serif;
+      font-size: clamp(36px, 5vw, 64px);
+      font-weight: 800;
+      line-height: 1.1;
+      color: var(--text);
+      margin-bottom: 40px;
+      letter-spacing: -1px;
+    }
+
+    .hero-title .ghost { color: var(--green); }
+    .hero-title .fade { color: var(--text-muted); }
+
+    .hero-line {
+      width: 48px;
+      height: 1px;
+      background: var(--green-mid);
+      margin-bottom: 32px;
+    }
+
+    .hero-sub {
+      font-size: 12px;
+      line-height: 2;
+      color: var(--text-muted);
+      max-width: 380px;
+      margin-bottom: 52px;
+    }
+
+    /* Waitlist */
+    .waitlist-wrap { max-width: 380px; }
+
+    .waitlist-label {
+      font-size: 9px;
+      letter-spacing: 3px;
+      color: var(--text-muted);
+      text-transform: uppercase;
+      margin-bottom: 12px;
+    }
+
+    .waitlist {
+      display: flex;
+      border: 1px solid var(--border-mid);
+    }
+
+    .waitlist:focus-within {
+      border-color: var(--green);
+      box-shadow: 0 0 20px rgba(0,255,102,0.05);
+    }
+
+    .waitlist input {
+      flex: 1;
+      background: transparent;
+      border: none;
+      color: var(--text);
+      font-family: 'Space Mono', monospace;
+      font-size: 12px;
+      padding: 14px 16px;
+      outline: none;
+    }
+
+    .waitlist input::placeholder { color: var(--text-dim); }
+
+    .waitlist button {
+      background: transparent;
+      border: none;
+      border-left: 1px solid var(--border-mid);
+      color: var(--green);
+      font-family: 'Space Mono', monospace;
+      font-size: 10px;
+      letter-spacing: 2px;
+      text-transform: uppercase;
+      padding: 14px 20px;
+      cursor: pointer;
+      transition: background 0.2s;
+      white-space: nowrap;
+    }
+
+    .waitlist button:hover { background: var(--green-dim); }
+
+    .waitlist-note {
+      font-size: 10px;
+      color: var(--text-dim);
+      margin-top: 10px;
+      letter-spacing: 0.5px;
+      line-height: 1.8;
+    }
+
+    .success-msg {
+      display: none;
+      font-size: 12px;
+      color: var(--green);
+      letter-spacing: 1px;
+      padding: 14px 0;
+      border-top: 1px solid var(--green-mid);
+      margin-top: 8px;
+    }
+
+    /* Hero right — terminal display */
+    .hero-right {
+      padding: 140px 48px 80px;
+      display: flex;
+      flex-direction: column;
+      justify-content: center;
+    }
+
+    .terminal {
+      background: var(--surface);
+      border: 1px solid var(--border);
+      padding: 32px;
+      font-size: 11px;
+      line-height: 2;
+      color: var(--text-muted);
+      max-width: 480px;
+    }
+
+    .terminal-header {
+      display: flex;
+      align-items: center;
+      gap: 6px;
+      margin-bottom: 24px;
+      padding-bottom: 16px;
+      border-bottom: 1px solid var(--border);
+    }
+
+    .t-dot { width: 8px; height: 8px; border-radius: 50%; background: var(--text-dim); }
+
+    .terminal-title {
+      font-size: 9px;
+      letter-spacing: 2px;
+      color: var(--text-dim);
+      margin-left: 8px;
+      text-transform: uppercase;
+    }
+
+    .t-line { margin-bottom: 4px; }
+    .t-prompt { color: var(--green); margin-right: 8px; }
+    .t-cmd { color: var(--text); }
+    .t-out { color: var(--text-muted); padding-left: 16px; }
+    .t-green { color: var(--green); }
+    .t-dim { color: var(--text-dim); }
+
+    /* Stats row */
+    .stats {
+      display: grid;
+      grid-template-columns: repeat(4, 1fr);
+      border-bottom: 1px solid var(--border);
+    }
+
+    .stat {
+      padding: 32px 40px;
+      border-right: 1px solid var(--border);
+    }
+
+    .stat:last-child { border-right: none; }
+
+    .stat-num {
+      font-family: 'Syne', sans-serif;
+      font-size: 32px;
+      font-weight: 800;
+      color: var(--text);
+      line-height: 1;
+      margin-bottom: 8px;
+    }
+
+    .stat-num span { color: var(--green); }
+
+    .stat-label {
+      font-size: 9px;
+      letter-spacing: 2px;
+      color: var(--text-muted);
+      text-transform: uppercase;
+      line-height: 1.6;
+    }
+
+    /* Pillars */
+    .pillars {
+      display: grid;
+      grid-template-columns: repeat(3, 1fr);
+      border-bottom: 1px solid var(--border);
+    }
+
+    .pillar {
+      padding: 64px 40px;
+      border-right: 1px solid var(--border);
+      position: relative;
+      transition: background 0.3s;
+    }
+
+    .pillar:last-child { border-right: none; }
+    .pillar:hover { background: var(--green-dim); }
+
+    .pillar-index {
+      font-size: 9px;
+      letter-spacing: 3px;
+      color: var(--text-dim);
+      margin-bottom: 32px;
+      font-family: 'Space Mono', monospace;
+    }
+
+    .pillar-icon {
+      font-size: 11px;
+      color: var(--green);
+      letter-spacing: 2px;
+      margin-bottom: 16px;
+      font-family: 'Space Mono', monospace;
+    }
+
+    .pillar-title {
+      font-family: 'Syne', sans-serif;
+      font-size: 22px;
+      font-weight: 700;
+      color: var(--text);
+      margin-bottom: 16px;
+      letter-spacing: -0.5px;
+    }
+
+    .pillar-body {
+      font-size: 11px;
+      line-height: 2;
+      color: var(--text-muted);
+    }
+
+    /* Manifesto */
+    .manifesto {
+      padding: 120px 48px;
+      border-bottom: 1px solid var(--border);
+      display: grid;
+      grid-template-columns: 200px 1fr;
+      gap: 80px;
+      align-items: start;
+    }
+
+    .manifesto-label {
+      font-size: 9px;
+      letter-spacing: 3px;
+      color: var(--green);
+      text-transform: uppercase;
+      padding-top: 8px;
+      line-height: 2;
+    }
+
+    .manifesto-text {
+      font-family: 'Syne', sans-serif;
+      font-size: clamp(20px, 2.5vw, 28px);
+      font-weight: 400;
+      line-height: 1.7;
+      color: var(--text-muted);
+      letter-spacing: -0.3px;
+    }
+
+    .manifesto-text strong {
+      color: var(--text);
+      font-weight: 700;
+    }
+
+    .manifesto-text .accent { color: var(--green); font-weight: 700; }
+
+    /* Policy */
+    .policy {
+      border-bottom: 1px solid var(--border);
+    }
+
+    .policy-header {
+      padding: 48px 40px;
+      border-bottom: 1px solid var(--border);
+      display: flex;
+      align-items: baseline;
+      justify-content: space-between;
+    }
+
+    .policy-header h2 {
+      font-family: 'Syne', sans-serif;
+      font-size: clamp(28px, 4vw, 48px);
+      font-weight: 800;
+      color: var(--text);
+      letter-spacing: -1px;
+    }
+
+    .policy-header span {
+      font-size: 10px;
+      letter-spacing: 2px;
+      color: var(--green);
+      text-transform: uppercase;
+    }
+
+    .policy-rows { }
+
+    .policy-row {
+      display: grid;
+      grid-template-columns: 240px 1fr;
+      border-bottom: 1px solid var(--border);
+      transition: background 0.2s;
+    }
+
+    .policy-row:last-child { border-bottom: none; }
+    .policy-row:hover { background: var(--green-dim); }
+
+    .policy-key {
+      padding: 32px 40px;
+      border-right: 1px solid var(--border);
+      font-size: 10px;
+      letter-spacing: 2px;
+      color: var(--green);
+      text-transform: uppercase;
+      display: flex;
+      align-items: center;
+    }
+
+    .policy-val {
+      padding: 32px 40px;
+      font-size: 12px;
+      line-height: 1.9;
+      color: var(--text-muted);
+    }
+
+    /* Footer */
+    footer {
+      padding: 40px;
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+    }
+
+    .footer-logo {
+      font-family: 'Space Mono', monospace;
+      font-size: 12px;
+      letter-spacing: 3px;
+      color: var(--green);
+      text-transform: uppercase;
+    }
+
+    .footer-right {
+      display: flex;
+      gap: 32px;
+      align-items: center;
+    }
+
+    footer p {
+      font-size: 10px;
+      color: var(--text-dim);
+      letter-spacing: 1px;
+    }
+
+    /* Scroll reveals */
+    .reveal {
+      opacity: 0;
+      transform: translateY(12px);
+      transition: opacity 0.5s ease, transform 0.5s ease;
+    }
+    .reveal.visible { opacity: 1; transform: translateY(0); }
+
+    @media (max-width: 900px) {
+      nav { padding: 16px 24px; }
+      .hero { grid-template-columns: 1fr; }
+      .hero-left { padding: 100px 24px 48px; }
+      .hero-right { display: none; }
+      .stats { grid-template-columns: 1fr 1fr; }
+      .stat { border-bottom: 1px solid var(--border); }
+      .pillars { grid-template-columns: 1fr; }
+      .pillar { border-right: none; border-bottom: 1px solid var(--border); }
+      .manifesto { grid-template-columns: 1fr; gap: 24px; padding: 80px 24px; }
+      .policy-header { padding: 32px 24px; }
+      .policy-row { grid-template-columns: 1fr; }
+      .policy-key { border-right: none; border-bottom: 1px solid var(--border); padding: 20px 24px; }
+      .policy-val { padding: 20px 24px; }
+      footer { flex-direction: column; gap: 16px; padding: 32px 24px; text-align: center; }
+      .boot { padding: 24px; }
+    }
+  </style>
+</head>
+<body>
+
+  <!-- Boot sequence -->
+  <div class="boot" id="boot">
+    <div class="boot-line dim" id="b0">GHOSTROOT_OS v0.1.0 — initializing...</div>
+    <div class="boot-line" id="b1">$ checking privacy architecture.............. <span style="color:var(--green)">OK</span></div>
+    <div class="boot-line" id="b2">$ verifying energy source..................... <span style="color:var(--green)">OK</span></div>
+    <div class="boot-line" id="b3">$ purging session logs........................ <span style="color:var(--green)">DONE</span></div>
+    <div class="boot-line" id="b4">$ ephemeral processing active................. <span style="color:var(--green)">CONFIRMED</span></div>
+    <div class="boot-line dim" id="b5">— no trace of previous sessions found</div>
+    <div class="boot-line" id="b6">$ loading interface...<span class="cursor-blink" id="bootcursor"></span></div>
+  </div>
+
+  <nav>
+    <a href="/" class="nav-logo">GhostRoot</a>
+    <div class="nav-status">
+      <div class="status-dot"></div>
+      <span>Systems nominal</span>
+    </div>
+  </nav>
+
+  <!-- Hero -->
+  <div class="hero" id="hero">
+    <div class="hero-left">
+      <div class="hero-tag">Early access — waitlist open</div>
+      <h1 class="hero-title">
+        <span class="ghost">No trace.</span><br>
+        No cost.<br>
+        <span class="fade">No compromise.</span>
+      </h1>
+      <div class="hero-line"></div>
+      <p class="hero-sub">
+        Privacy-first conversational AI powered by clean energy. Zero persistent logging. No data monetization. No training on your conversations without consent.<br><br>
+        It remembers the conversation without remembering you.
+      </p>
+      <div class="waitlist-wrap">
+        <div class="waitlist-label">Join the waitlist</div>
+        <div class="waitlist">
+          <input type="email" id="email" placeholder="your@email.com" autocomplete="off">
+          <button onclick="joinWaitlist()">→ Enter</button>
+        </div>
+        <p class="waitlist-note">No spam. No data selling. That's the whole point.</p>
+        <p class="success-msg" id="success">// access granted. we'll be in touch.</p>
+      </div>
+    </div>
+
+    <div class="hero-right">
+      <div class="terminal">
+        <div class="terminal-header">
+          <div class="t-dot"></div>
+          <div class="t-dot"></div>
+          <div class="t-dot"></div>
+          <span class="terminal-title">ghostroot — session log</span>
+        </div>
+        <div class="t-line"><span class="t-prompt">$</span><span class="t-cmd">ghostroot --status</span></div>
+        <div class="t-line t-out t-green">● active — ephemeral mode</div>
+        <div class="t-line t-out t-dim">energy: verified renewable</div>
+        <div class="t-line t-out t-dim">logs: none</div>
+        <br>
+        <div class="t-line"><span class="t-prompt">$</span><span class="t-cmd">ghostroot --privacy check</span></div>
+        <div class="t-line t-out t-green">✓ persistent logging: disabled</div>
+        <div class="t-line t-out t-green">✓ data monetization: disabled</div>
+        <div class="t-line t-out t-green">✓ training consent: required</div>
+        <div class="t-line t-out t-green">✓ session data: ephemeral</div>
+        <br>
+        <div class="t-line"><span class="t-prompt">$</span><span class="t-cmd">ghostroot --session end</span></div>
+        <div class="t-line t-out t-dim">purging session memory...</div>
+        <div class="t-line t-out t-green">done. no trace remaining.</div>
+        <br>
+        <div class="t-line t-dim">// this terminal clears on exit. always.</div>
+      </div>
+    </div>
+  </div>
+
+  <!-- Stats -->
+  <div class="stats">
+    <div class="stat reveal">
+      <div class="stat-num"><span>0</span></div>
+      <div class="stat-label">Persistent logs<br>kept per session</div>
+    </div>
+    <div class="stat reveal">
+      <div class="stat-num"><span>0</span></div>
+      <div class="stat-label">Data points<br>sold or shared</div>
+    </div>
+    <div class="stat reveal">
+      <div class="stat-num">100<span>%</span></div>
+      <div class="stat-label">Clean energy<br>target</div>
+    </div>
+    <div class="stat reveal">
+      <div class="stat-num"><span>∞</span></div>
+      <div class="stat-label">Questions you can ask<br>without being tracked</div>
+    </div>
+  </div>
+
+  <!-- Pillars -->
+  <div class="pillars">
+    <div class="pillar reveal">
+      <div class="pillar-index">01 / 03</div>
+      <div class="pillar-icon">[ INVISIBLE INK ]</div>
+      <div class="pillar-title">Ephemeral by design</div>
+      <div class="pillar-body">Your conversation is processed in memory, a response is generated, then it's gone. Nothing written to persistent storage. Not a policy claim — an architectural decision you can verify.</div>
+    </div>
+    <div class="pillar reveal">
+      <div class="pillar-index">02 / 03</div>
+      <div class="pillar-icon">[ CLEAN POWER ]</div>
+      <div class="pillar-title">Energy you can see</div>
+      <div class="pillar-body">Every query runs on verified renewable or nuclear energy. We publish actual kilowatt hours per query and our energy source in real time. Transparency isn't a marketing claim. It's a number.</div>
+    </div>
+    <div class="pillar reveal">
+      <div class="pillar-index">03 / 03</div>
+      <div class="pillar-icon">[ MIN COMPUTE ]</div>
+      <div class="pillar-title">Use only what's needed</div>
+      <div class="pillar-body">Smallest model capable of handling each task. Efficiency visible to users. Nobody in AI talks about using less. We do — because less compute means less energy, and less energy means less cost to the earth.</div>
+    </div>
+  </div>
+
+  <!-- Manifesto -->
+  <div class="manifesto">
+    <div class="manifesto-label reveal">The manifesto</div>
+    <p class="manifesto-text reveal">
+      <strong>AI has two problems nobody is solving.</strong> The first is energy — data centers burning fossil fuels at scale while the industry calls itself the future. The second is privacy — your conversations, your thoughts, your data being logged, analyzed, and sold back to you as advertising.<br><br>
+      People accept this because they have <strong>no alternative.</strong><br><br>
+      GhostRoot is the alternative. Not more powerful. Not louder. Just <span class="accent">honest</span> — about what it uses, what it keeps, and what it forgets. <strong>Which is everything.</strong>
+    </p>
+  </div>
+
+  <!-- Policy -->
+  <div class="policy reveal">
+    <div class="policy-header">
+      <h2>Invisible Ink</h2>
+      <span>Data policy</span>
+    </div>
+    <div class="policy-rows">
+      <div class="policy-row">
+        <div class="policy-key">Zero logging</div>
+        <div class="policy-val">Ephemeral processing only. Conversations processed in memory, response generated, everything discarded. Nothing written to persistent storage. Ever.</div>
+      </div>
+      <div class="policy-row">
+        <div class="policy-key">Zero monetization</div>
+        <div class="policy-val">Your data is never sold, shared, or used for advertising. We make money from subscriptions. The business model is aligned with your privacy, not against it.</div>
+      </div>
+      <div class="policy-row">
+        <div class="policy-key">Zero training</div>
+        <div class="policy-val">Your conversations never train the model unless you explicitly opt in. We ask. We never assume. Consent is a feature, not a checkbox buried in terms of service.</div>
+      </div>
+      <div class="policy-row">
+        <div class="policy-key">Verifiable</div>
+        <div class="policy-val">Open source infrastructure. You can verify the policy is real, not just stated. We publish energy usage, model architecture, and data handling. Trust should be earned.</div>
+      </div>
+    </div>
+  </div>
+
+  <footer>
+    <div class="footer-logo">GhostRoot AI</div>
+    <div class="footer-right">
+      <p>© 2026 GhostRoot AI</p>
+      <p>Private. Clean. Yours.</p>
+    </div>
+  </footer>
+
+  <script>
+    // Boot sequence
+    const lines = ['b0','b1','b2','b3','b4','b5','b6'];
+    const delays = [0, 400, 800, 1200, 1600, 2000, 2400];
+
+    lines.forEach((id, i) => {
+      setTimeout(() => {
+        document.getElementById(id).classList.add('show');
+      }, delays[i]);
+    });
+
+    setTimeout(() => {
+      document.getElementById('bootcursor').style.display = 'none';
+      document.getElementById('boot').classList.add('hidden');
+      document.getElementById('hero').classList.add('visible');
+    }, 3200);
+
+    // Nav scroll
+    window.addEventListener('scroll', () => {
+      const nav = document.querySelector('nav');
+      if (window.scrollY > 40) {
+        nav.style.borderBottom = '1px solid var(--border)';
+        nav.style.background = 'rgba(5,5,5,0.95)';
+        nav.style.backdropFilter = 'blur(12px)';
+      } else {
+        nav.style.borderBottom = 'none';
+        nav.style.background = 'transparent';
+      }
+    });
+
+    // Scroll reveals
+    const observer = new IntersectionObserver(entries => {
+      entries.forEach(entry => {
+        if (entry.isIntersecting) entry.target.classList.add('visible');
+      });
+    }, { threshold: 0.08 });
+
+    document.querySelectorAll('.reveal').forEach(el => observer.observe(el));
+
+    // Waitlist
+    function joinWaitlist() {
+      const email = document.getElementById('email').value.trim();
+      if (!email || !email.includes('@')) {
+        document.querySelector('.waitlist').style.borderColor = 'rgba(255,60,60,0.4)';
+        return;
+      }
+      document.querySelector('.waitlist').style.display = 'none';
+      document.querySelector('.waitlist-note').style.display = 'none';
+      document.getElementById('success').style.display = 'block';
+
+      const emails = JSON.parse(localStorage.getItem('gr_waitlist') || '[]');
+      emails.push({ email, date: new Date().toISOString() });
+      localStorage.setItem('gr_waitlist', JSON.stringify(emails));
+    }
+
+    document.getElementById('email').addEventListener('keypress', e => {
+      if (e.key === 'Enter') joinWaitlist();
+    });
+  </script>
+</body>
+</html>
