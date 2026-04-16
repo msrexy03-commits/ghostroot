@@ -749,20 +749,47 @@
 
     document.querySelectorAll('.reveal').forEach(el => observer.observe(el));
 
+    // Supabase config
+    const SUPABASE_URL = 'https://aylknypovztbocwltseo.supabase.co';
+    const SUPABASE_ANON_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImF5bGtueXBvdnp0Ym9jd2x0c2VvIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NzYyODgwNTksImV4cCI6MjA5MTg2NDA1OX0.ZQbgcUc0kusjxpA7xjXCz7_oCdwpZopJlhF80A9WSOA';
+
     // Waitlist
-    function joinWaitlist() {
+    async function joinWaitlist() {
       const email = document.getElementById('email').value.trim();
       if (!email || !email.includes('@')) {
         document.querySelector('.waitlist').style.borderColor = 'rgba(255,60,60,0.4)';
         return;
       }
-      document.querySelector('.waitlist').style.display = 'none';
-      document.querySelector('.waitlist-note').style.display = 'none';
-      document.getElementById('success').style.display = 'block';
 
-      const emails = JSON.parse(localStorage.getItem('gr_waitlist') || '[]');
-      emails.push({ email, date: new Date().toISOString() });
-      localStorage.setItem('gr_waitlist', JSON.stringify(emails));
+      const btn = document.querySelector('.waitlist button');
+      btn.textContent = '...';
+      btn.disabled = true;
+
+      try {
+        const res = await fetch(`${SUPABASE_URL}/rest/v1/waitlist`, {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+            'apikey': SUPABASE_ANON_KEY,
+            'Authorization': `Bearer ${SUPABASE_ANON_KEY}`,
+            'Prefer': 'return=minimal'
+          },
+          body: JSON.stringify({ email })
+        });
+
+        if (res.ok || res.status === 409) {
+          document.querySelector('.waitlist').style.display = 'none';
+          document.querySelector('.waitlist-note').style.display = 'none';
+          document.getElementById('success').style.display = 'block';
+        } else {
+          btn.textContent = '→ Enter';
+          btn.disabled = false;
+          document.querySelector('.waitlist').style.borderColor = 'rgba(255,60,60,0.4)';
+        }
+      } catch (err) {
+        btn.textContent = '→ Enter';
+        btn.disabled = false;
+      }
     }
 
     document.getElementById('email').addEventListener('keypress', e => {
